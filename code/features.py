@@ -1,18 +1,53 @@
-import math
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
+
+
+def _safe_int(value: object, default: int = 0) -> int:
+    """int() that tolerates missing keys, None, and blank/whitespace strings from CSV data."""
+    if value is None:
+        return default
+    text = str(value).strip()
+    if not text:
+        return default
+    try:
+        return int(float(text))
+    except (ValueError, TypeError):
+        return default
 
 
 class FeatureEngine:
-    def __init__(self, users: List[Dict[str, str]], groups: List[Dict[str, str]], group_members: List[Dict[str, str]], business_accounts: List[Dict[str, str]], user_business_history: List[Dict[str, str]], message_events: List[Dict[str, str]]):
+    def __init__(self, users: List[Dict[str, str]], groups: List[Dict[str, str]], group_members: List[Dict[str, str]], business_accounts: List[Dict[str, str]], user_business_history: List[Dict[str, str]], message_events: List[Dict[str, str]], daily_notification_summary: Optional[List[Dict[str, str]]] = None):
         self.users = {row.get("user_id"): row for row in users}
         self.groups = {row.get("group_id"): row for row in groups}
         self.group_members = {(row.get("group_id"), row.get("user_id")): row for row in group_members}
         self.business_accounts = {row.get("business_id"): row for row in business_accounts}
         self.user_business_history = {(row.get("user_id"), row.get("business_id")): row for row in user_business_history}
         self.message_events = {(row.get("user_id"), row.get("message_id")): row for row in message_events}
+        self.fatigue_by_user = self._build_fatigue_index(daily_notification_summary or [])
 
-    def build_features(self, message: Dict[str, str], context: Dict[str, object], evidence: List[Dict[str, object]], media_info: Dict[str, object]) -> Dict[str, object]:
+    def _build_fatigue_index(self, daily_summary: List[Dict[str, str]]) -> Dict[str, float]:
+        """Per-user notification dismissal rate from daily_notification_summary.csv.
+        A high recent dismissal rate is a personalization signal: this user tends to
+        ignore notifications, so borderline messages should lean toward digest rather
+        than notify."""
+        sent_by_user: Dict[str, int] = {}
+        dismissed_by_user: Dict[str, int] = {}
+        for row in daily_summary:
+            user_id = row.get("user_id")
+            if not user_id:
+                continue
+            sent_by_user[user_id] = sent_by_user.get(user_id, 0) + _safe_int(row.get("notifications_sent"))
+            dismissed_by_user[user_id] = dismissed_by_user.get(user_id, 0) + _safe_int(row.get("notifications_dismissed"))
+        fatigue: Dict[str, float] = {}
+        for user_id, sent in sent_by_user.items():
+            if sent <= 0:
+                fatigue[user_id] = 0.0
+                continue
+            rate = dismissed_by_user.get(user_id, 0) / sent
+            fatigue[user_id] = round(max(0.0, min(1.0, rate)), 3)
+        return fatigue
+
+    def build_features(self, message: Dict[str, str], evidence: List[Dict[str, object]], media_info: Dict[str, object]) -> Dict[str, object]:
         user = self.users.get(message.get("user_id"), {})
         group_member = self.group_members.get((message.get("group_id"), message.get("user_id")), {}) if message.get("group_id") else {}
         business = self.business_accounts.get(message.get("business_id"), {}) if message.get("business_id") else {}
@@ -21,6 +56,8 @@ class FeatureEngine:
         trust_score = self._trust_score(user, group_member, business, business_history)
         urgency_score = self._urgency_score(message, media_info)
         scam_score = self._scam_score(message, business, media_info, evidence)
+        notification_fatigue = self.fatigue_by_user.get(message.get("user_id"), 0.0)
+        untranscribed_voice = bool(message.get("media_type") == "voice" and media_info.get("extraction_source") != "asr")
         return {
             "trust_score": trust_score,
             "trust_band": self._band(trust_score, "trust"),
@@ -33,11 +70,14 @@ class FeatureEngine:
             "group_type": self.groups.get(message.get("group_id"), {}).get("group_type") if message.get("group_id") else "",
             "business_verified": bool(business.get("verified") == "1"),
             "allows_promotions": bool(business_history.get("allows_promotions") == "1") if business_history else False,
-            "activity_count_180d": int(business_history.get("activity_count_180d", "0")) if business_history else 0,
+            "activity_count_180d": _safe_int(business_history.get("activity_count_180d") if business_history else None),
             "is_duplicate": self._is_duplicate(message, evidence),
             "is_direct_mention": bool(re.search(r"@u_\d+|@\w+", (message.get("message_text") or ""))),
             "evidence_strength": self._evidence_strength(evidence),
             "rule_certainty": self._rule_certainty(urgency_score, scam_score, trust_score),
+            "notification_fatigue": notification_fatigue,
+            "high_fatigue": notification_fatigue >= 0.6,
+            "untranscribed_voice": untranscribed_voice,
         }
 
     def _trust_score(self, user: Dict[str, str], group_member: Dict[str, str], business: Dict[str, str], business_history: Dict[str, str]) -> float:
@@ -84,7 +124,7 @@ class FeatureEngine:
             score += 0.20
         if re.search(r"payment|otp|verify|delivery|booking|refund|wallet|card|pay|review|submit|reply", combined):
             score += 0.15
-        if message.get("forwarded_count") and int(message.get("forwarded_count", "0")) > 0:
+        if _safe_int(message.get("forwarded_count")) > 0:
             score -= 0.20
         if re.search(r"offer|promotion|sale|discount|free|limited|welcome|blessing|health tip|share", combined):
             score -= 0.15
@@ -100,7 +140,7 @@ class FeatureEngine:
             score += 0.25
         if re.search(r"bit\.ly|http|https|verify-quick|amazonpay|delivery|link|qr", combined):
             score += 0.20
-        if int(message.get("forwarded_count", "0")) > 0:
+        if _safe_int(message.get("forwarded_count")) > 0:
             score += 0.15
         if re.search(r"imperson|unknown|is this|from the courier desk|helping you|account block|security at risk", combined):
             score += 0.10

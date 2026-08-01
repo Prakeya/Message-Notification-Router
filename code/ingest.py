@@ -3,7 +3,7 @@ import os
 import re
 import shutil
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 try:
     import requests
@@ -53,7 +53,8 @@ class MediaProcessor:
             path = self.dataset_dir / file_path if file_path else None
             if path and path.exists() and self.ocr_available:
                 try:
-                    extracted = pytesseract.image_to_string(Image.open(path))
+                    with Image.open(path) as img:
+                        extracted = pytesseract.image_to_string(img)
                     summary = self._normalize(extracted or text or f"image {media_id}")
                     contains_payment_request = bool(re.search(r"payment|otp|verify|pay|card|bank|booking|delivery|refund|wallet", summary.lower()))
                     contains_link_or_qr = bool(re.search(r"link|qr|bit\.ly|http|https|scan", summary.lower()))

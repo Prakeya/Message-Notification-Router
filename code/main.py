@@ -1,9 +1,7 @@
 import csv
-import json
 import os
-import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from ingest import MediaProcessor, load_csv_rows
 from retrieval import Retriever
@@ -27,13 +25,14 @@ def main() -> None:
     user_business_history = load_csv_rows(DATASET_DIR / "user_business_history.csv")
     images = load_csv_rows(DATASET_DIR / "images.csv")
     voice_notes = load_csv_rows(DATASET_DIR / "voice_notes.csv")
+    daily_notification_summary = load_csv_rows(DATASET_DIR / "daily_notification_summary.csv")
 
     image_lookup = {row.get("image_id"): row for row in images}
     voice_lookup = {row.get("voice_note_id"): row for row in voice_notes}
 
     processor = MediaProcessor(str(DATASET_DIR))
     retriever = Retriever(message_history, message_events)
-    feature_engine = FeatureEngine(users, groups, group_members, business_accounts, user_business_history, message_events)
+    feature_engine = FeatureEngine(users, groups, group_members, business_accounts, user_business_history, message_events, daily_notification_summary)
     debug_path = ROOT / "logs" / "debug_predictions.jsonl"
     os.makedirs(ROOT / "logs", exist_ok=True)
     if debug_path.exists():
@@ -44,8 +43,8 @@ def main() -> None:
     predictions: List[Dict[str, object]] = []
     for message in messages:
         media_info = processor.analyze(message, image_lookup, voice_lookup)
-        evidence = retriever.retrieve(message, {}, top_k=2)
-        features = feature_engine.build_features(message, {}, evidence, media_info)
+        evidence = retriever.retrieve(message, top_k=2)
+        features = feature_engine.build_features(message, evidence, media_info)
         decision = decision_engine.decide(message, features, evidence, media_info)
         prediction = {
             "message_id": message.get("message_id"),

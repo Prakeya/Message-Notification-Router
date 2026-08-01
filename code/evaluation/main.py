@@ -1,7 +1,4 @@
 import csv
-import json
-import os
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -11,9 +8,12 @@ MESSAGE_HISTORY_PATH = DATASET_DIR / 'message_history.csv'
 
 
 def main() -> None:
-    rows = list(csv.DictReader(OUTPUT_PATH.open('r', encoding='utf-8', newline='')))
-    messages = list(csv.DictReader((DATASET_DIR / 'messages.csv').open('r', encoding='utf-8', newline='')))
-    history_ids = {row.get('message_id') for row in csv.DictReader(MESSAGE_HISTORY_PATH.open('r', encoding='utf-8', newline=''))}
+    with OUTPUT_PATH.open('r', encoding='utf-8', newline='') as handle:
+        rows = list(csv.DictReader(handle))
+    with (DATASET_DIR / 'messages.csv').open('r', encoding='utf-8', newline='') as handle:
+        messages = list(csv.DictReader(handle))
+    with MESSAGE_HISTORY_PATH.open('r', encoding='utf-8', newline='') as handle:
+        history_ids = {row.get('message_id') for row in csv.DictReader(handle)}
 
     if len(rows) != len(messages):
         raise ValueError(f'Expected {len(messages)} rows, got {len(rows)}')

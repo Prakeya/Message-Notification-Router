@@ -58,7 +58,7 @@ class Retriever:
         self.history_texts = [self._text_for(row) for row in self.history]
         self.history_embeddings = self._embed_many(self.history_texts)
 
-    def retrieve(self, current_message: Dict[str, str], current_context: Dict[str, object], top_k: int = 2) -> List[Dict[str, object]]:
+    def retrieve(self, current_message: Dict[str, str], top_k: int = 2) -> List[Dict[str, object]]:
         current_text = self._text_for(current_message)
         current_embedding = self._embed_one(current_text)
         candidates = []

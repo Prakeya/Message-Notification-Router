@@ -28,14 +28,23 @@ class DecisionEngine:
         rule_action, rule_message_type, rule_reason = self._deterministic_decision(message, text, features)
         action, message_type, reason = rule_action, rule_message_type, rule_reason
 
+        # Personalization: a user who habitually dismisses notifications (per
+        # daily_notification_summary.csv) shouldn't be interrupted for routine,
+        # non-urgent content. Safety-relevant and personal/urgent categories are
+        # never softened this way.
+        softenable_types = {"business_update", "promotion", "event", "forward", "greeting"}
+        if action == "notify" and features.get("high_fatigue") and message_type in softenable_types:
+            action = "digest"
+            reason = f"{reason} (user frequently dismisses notifications; held for digest)"
+
         llm_used = False
         llm_succeeded = False
         fallback_used = False
+        llm_last_error = None
         top_signals = self._top_signals(features, message, text, evidence)
         conflict_count = self._conflict_count(message, text, features, evidence, media_info)
         if conflict_count >= 2:
             llm_used = True
-            last_error = None
             for attempt in range(2):
                 try:
                     llm_payload = self._call_llm(message, text, features, evidence, media_info)
@@ -50,7 +59,7 @@ class DecisionEngine:
                         raise RuntimeError("invalid llm response")
                     break
                 except Exception as exc:
-                    last_error = exc
+                    llm_last_error = str(exc)
                     if attempt == 0:
                         continue
                     fallback_used = True
@@ -69,7 +78,7 @@ class DecisionEngine:
             "confidence": round(confidence, 3),
             "evidence_message_ids": evidence_ids,
         }
-        self._append_debug(message, features, evidence, media_info, decision, top_signals, llm_used, llm_succeeded, fallback_used, conflict_count)
+        self._append_debug(message, features, evidence, media_info, decision, top_signals, llm_used, llm_succeeded, fallback_used, conflict_count, llm_last_error)
         return decision
 
     def _deterministic_decision(self, message: Dict[str, str], text: str, features: Dict[str, object]) -> tuple:
@@ -78,6 +87,8 @@ class DecisionEngine:
             return "mute", "scam", "high scam risk indicators"
         if features.get("urgency_band") == "High" and (features.get("role") == "admin" or features.get("business_verified")) and self._has_explicit_window(text):
             return "notify", "urgent", "trusted group admin"
+        if features.get("untranscribed_voice"):
+            return self._route_untranscribed_voice(message, features)
         if self._is_business_transaction(message, text, features):
             return "notify", "payment", "transactional business request"
         if self._is_marketing(message, text, features):
@@ -107,6 +118,23 @@ class DecisionEngine:
         if self._looks_urgent(text):
             return "notify", "urgent", "time-sensitive content"
         return "digest", "unknown", "no strong routing signal"
+
+    def _route_untranscribed_voice(self, message: Dict[str, str], features: Dict[str, object]) -> tuple:
+        """Voice notes without ASR transcription (no OPENAI_API_KEY configured) carry no
+        text content to run the regex-based heuristics against. Rather than defaulting
+        straight to 'unknown / no strong routing signal', route on the metadata we do
+        have: sender/business trust, scam risk, and the user's own mute state."""
+        if features.get("scam_band") in {"Medium", "High"}:
+            return "mute", "scam", "voice note from a low-trust or risky sender"
+        if features.get("group_muted") and not features.get("is_direct_mention"):
+            return "mute", "unknown", "muted group without direct mention"
+        if features.get("trust_band") == "High" and message.get("conversation_type") == "personal":
+            return "notify", "personal", "voice note from a trusted personal contact"
+        if features.get("business_verified") and message.get("business_id"):
+            return "digest", "business_update", "voice note from a verified business account"
+        if features.get("trust_band") == "Low":
+            return "digest", "unknown", "voice note from a low-trust sender; awaiting transcription"
+        return "digest", "unknown", "voice note pending transcription; routed by sender trust"
 
     def _fallback_decision(self, message: Dict[str, str], text: str, features: Dict[str, object], evidence: List[Dict[str, object]]) -> tuple:
         rule_action, rule_message_type, rule_reason = self._deterministic_decision(message, text, features)
@@ -241,7 +269,7 @@ class DecisionEngine:
             signals.append("historical evidence")
         return signals[:4]
 
-    def _append_debug(self, message: Dict[str, str], features: Dict[str, object], evidence: List[Dict[str, object]], media_info: Dict[str, object], decision: Dict[str, object], top_signals: List[str], llm_used: bool, llm_succeeded: bool, fallback_used: bool, conflict_count: int) -> None:
+    def _append_debug(self, message: Dict[str, str], features: Dict[str, object], evidence: List[Dict[str, object]], media_info: Dict[str, object], decision: Dict[str, object], top_signals: List[str], llm_used: bool, llm_succeeded: bool, fallback_used: bool, conflict_count: int, llm_last_error: Optional[str] = None) -> None:
         if not self.debug_path:
             return
         os.makedirs(os.path.dirname(self.debug_path), exist_ok=True)
@@ -261,6 +289,9 @@ class DecisionEngine:
                 "is_direct_mention": features.get("is_direct_mention"),
                 "urgency_band": features.get("urgency_band"),
                 "evidence_strength": features.get("evidence_strength"),
+                "notification_fatigue": features.get("notification_fatigue"),
+                "high_fatigue": features.get("high_fatigue"),
+                "untranscribed_voice": features.get("untranscribed_voice"),
             },
             "conflict_count": conflict_count,
             "retrieved_evidence": [
@@ -274,6 +305,7 @@ class DecisionEngine:
             ],
             "llm_called": llm_used,
             "llm_failed": llm_used and not llm_succeeded,
+            "llm_last_error": llm_last_error,
             "llm_succeeded": llm_succeeded,
             "fallback_used": fallback_used,
             "top_signals": top_signals,

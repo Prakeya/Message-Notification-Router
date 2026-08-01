@@ -3,28 +3,28 @@ msg_023,notify,urgent,trusted group admin,0.864,message_0243
 msg_091,digest,forward,sender has a pattern of repeated forwards,0.738,message_0238
 msg_090,notify,urgent,time-sensitive content,0.539,none
 msg_048,mute,scam,high scam risk indicators,0.462,none
-msg_040,mute,spam,suspicious content and request to forward,0.585,none
+msg_040,mute,greeting,forward or greeting pattern,0.43,none
 msg_075,notify,payment,transactional business request,0.587,none
 msg_005,notify,personal,personal context with a direct request,0.507,none
 msg_104,notify,personal,personal context with a direct request,0.483,none
 msg_069,mute,unknown,muted group without direct mention,0.44,none
-msg_107,notify,payment,Routing override for banking alerts,0.585,none
+msg_107,digest,business_update,routine business update,0.448,none
 msg_070,mute,scam,high scam risk indicators,0.661,message_0369
 msg_003,notify,payment,transactional business request,0.776,message_0400;message_0031
 msg_099,digest,business_update,routine business update,0.602,none
 msg_008,notify,payment,transactional business request,0.822,message_0296;message_0072
 msg_092,notify,payment,transactional business request,0.546,none
-msg_060,digest,business_update,routine business update,0.822,message_0284;message_0176
+msg_060,digest,business_update,routine business update,0.794,message_0284;message_0176
 msg_004,notify,urgent,trusted group admin,0.878,message_0245;message_0005
 msg_030,mute,unknown,muted group without direct mention,0.623,message_0115
 msg_045,notify,personal,personal context with a direct request,0.438,none
 msg_052,mute,scam,high scam risk indicators,0.408,none
 msg_009,mute,unknown,muted group without direct mention,0.759,message_0074
-msg_071,notify,personal,low urgency and no credible scam risk,0.585,none
+msg_071,notify,personal,personal context with a direct request,0.499,none
 msg_016,mute,scam,high scam risk indicators,0.423,none
 msg_065,digest,promotion,user opted into promotions,0.829,message_0261;message_0260
 msg_038,mute,greeting,forward or greeting pattern,0.451,none
-msg_086,digest,unknown,no strong routing signal,0.56,none
+msg_086,digest,business_update,voice note from a verified business account,0.56,none
 msg_014,notify,payment,transactional business request,0.767,message_0258;message_0018
 msg_094,notify,payment,transactional business request,0.565,none
 msg_029,digest,event,scheduled activity notice,0.715,message_0113;message_0095
@@ -45,8 +45,8 @@ msg_088,mute,unknown,muted group without direct mention,0.441,none
 msg_056,notify,personal,personal context with a direct request,0.568,none
 msg_027,digest,promotion,user opted into promotions,0.808,message_0272;message_0033
 msg_050,notify,payment,transactional business request,0.806,message_0279;message_0278
-msg_083,digest,unknown,no strong routing signal,0.462,none
-msg_063,mute,scam,credible scam risk due to urgency and request for payment,0.585,none
+msg_083,digest,unknown,voice note from a low-trust sender; awaiting transcription,0.462,none
+msg_063,digest,business_update,routine business update,0.514,none
 msg_033,notify,personal,personal context with a direct request,0.511,none
 msg_061,mute,unknown,muted group without direct mention,0.44,none
 msg_020,mute,scam,high scam risk indicators,0.444,none
@@ -60,19 +60,19 @@ msg_079,digest,business_update,routine business update,0.458,none
 msg_098,notify,personal,personal context with a direct request,0.549,none
 msg_037,digest,unknown,no strong routing signal,0.511,none
 msg_007,digest,business_update,routine business update,0.49,none
-msg_085,digest,unknown,no strong routing signal,0.453,none
+msg_085,digest,unknown,voice note from a low-trust sender; awaiting transcription,0.453,none
 msg_001,digest,business_update,routine business update,0.515,none
 msg_021,notify,personal,personal context with a direct request,0.483,none
 msg_028,mute,promotion,user opted out of promotions,0.725,message_0034
 msg_012,digest,unknown,no strong routing signal,0.44,none
 msg_064,digest,business_update,routine business update,0.438,none
 msg_103,notify,personal,personal context with a direct request,0.553,none
-msg_031,notify,personal,personal context with a direct request,0.553,none
+msg_031,notify,personal,personal context with a direct request,0.574,none
 msg_057,notify,personal,personal context with a direct request,0.514,none
 msg_087,mute,unknown,muted group without direct mention,0.441,none
 msg_067,notify,payment,new sender with a payment request,0.525,none
 msg_039,notify,personal,personal context with a direct request,0.532,none
-msg_082,digest,unknown,no strong routing signal,0.446,none
+msg_082,digest,unknown,voice note from a low-trust sender; awaiting transcription,0.446,none
 msg_066,notify,payment,transactional business request,0.696,message_0257;message_0402
 msg_049,notify,payment,transactional business request,0.74,message_0154
 msg_015,notify,payment,new sender with a payment request,0.486,none
@@ -94,18 +94,18 @@ msg_035,notify,payment,transactional business request,0.773,message_0281;message
 msg_101,digest,unknown,no strong routing signal,0.469,none
 msg_041,notify,payment,transactional business request,0.535,none
 msg_011,mute,unknown,muted group without direct mention,0.477,none
-msg_110,notify,urgent,assistant instruction,0.585,none
-msg_095,notify,scam,credible scam risk due to suspicious link and payment verification request,0.585,none
+msg_110,notify,payment,new sender with a payment request,0.462,none
+msg_095,notify,personal,personal context with a direct request,0.525,none
 msg_074,mute,unknown,muted group without direct mention,0.42,none
 msg_073,mute,scam,high scam risk indicators,0.458,none
 msg_054,notify,payment,new sender with a payment request,0.413,none
-msg_068,notify,personal,low urgency and no credible scam risk,0.585,none
+msg_068,digest,unknown,no strong routing signal,0.472,none
 msg_100,notify,personal,personal context with a direct request,0.784,message_0362
 msg_062,digest,event,scheduled activity notice,0.77,message_0043
 msg_096,digest,unknown,no strong routing signal,0.511,none
 msg_043,notify,personal,personal context with a direct request,0.553,none
 msg_077,notify,personal,personal context with a direct request,0.574,none
-msg_081,digest,unknown,no strong routing signal,0.452,none
+msg_081,digest,unknown,voice note from a low-trust sender; awaiting transcription,0.452,none
 msg_025,notify,payment,transactional business request,0.778,message_0239;message_0004
-msg_084,digest,unknown,no strong routing signal,0.553,none
+msg_084,digest,business_update,voice note from a verified business account,0.553,none
 msg_022,digest,business_update,routine business update,0.483,none
