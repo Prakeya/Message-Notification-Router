@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment
+.env
+venv/
+.venv/
+
+# Data
+dataset/
+*.csv
+
+# Logs (optional: keep if you want audit logs tracked)
+logs/
+
+# Build files
+dist/
+build/
+
+# OS
+.DS_Store

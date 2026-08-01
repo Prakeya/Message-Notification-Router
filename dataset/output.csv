@@ -1,111 +1,111 @@
 message_id,action,message_type,reason,confidence,evidence_message_ids
-msg_023,,,,,
-msg_091,,,,,
-msg_090,,,,,
-msg_048,,,,,
-msg_040,,,,,
-msg_075,,,,,
-msg_005,,,,,
-msg_104,,,,,
-msg_069,,,,,
-msg_107,,,,,
-msg_070,,,,,
-msg_003,,,,,
-msg_099,,,,,
-msg_008,,,,,
-msg_092,,,,,
-msg_060,,,,,
-msg_004,,,,,
-msg_030,,,,,
-msg_045,,,,,
-msg_052,,,,,
-msg_009,,,,,
-msg_071,,,,,
-msg_016,,,,,
-msg_065,,,,,
-msg_038,,,,,
-msg_086,,,,,
-msg_014,,,,,
-msg_094,,,,,
-msg_029,,,,,
-msg_105,,,,,
-msg_002,,,,,
-msg_010,,,,,
-msg_078,,,,,
-msg_013,,,,,
-msg_018,,,,,
-msg_044,,,,,
-msg_032,,,,,
-msg_106,,,,,
-msg_006,,,,,
-msg_109,,,,,
-msg_108,,,,,
-msg_019,,,,,
-msg_088,,,,,
-msg_056,,,,,
-msg_027,,,,,
-msg_050,,,,,
-msg_083,,,,,
-msg_063,,,,,
-msg_033,,,,,
-msg_061,,,,,
-msg_020,,,,,
-msg_017,,,,,
-msg_058,,,,,
-msg_026,,,,,
-msg_047,,,,,
-msg_046,,,,,
-msg_042,,,,,
-msg_079,,,,,
-msg_098,,,,,
-msg_037,,,,,
-msg_007,,,,,
-msg_085,,,,,
-msg_001,,,,,
-msg_021,,,,,
-msg_028,,,,,
-msg_012,,,,,
-msg_064,,,,,
-msg_103,,,,,
-msg_031,,,,,
-msg_057,,,,,
-msg_087,,,,,
-msg_067,,,,,
-msg_039,,,,,
-msg_082,,,,,
-msg_066,,,,,
-msg_049,,,,,
-msg_015,,,,,
-msg_051,,,,,
-msg_097,,,,,
-msg_089,,,,,
-msg_053,,,,,
-msg_059,,,,,
-msg_024,,,,,
-msg_072,,,,,
-msg_036,,,,,
-msg_076,,,,,
-msg_055,,,,,
-msg_102,,,,,
-msg_080,,,,,
-msg_093,,,,,
-msg_034,,,,,
-msg_035,,,,,
-msg_101,,,,,
-msg_041,,,,,
-msg_011,,,,,
-msg_110,,,,,
-msg_095,,,,,
-msg_074,,,,,
-msg_073,,,,,
-msg_054,,,,,
-msg_068,,,,,
-msg_100,,,,,
-msg_062,,,,,
-msg_096,,,,,
-msg_043,,,,,
-msg_077,,,,,
-msg_081,,,,,
-msg_025,,,,,
-msg_084,,,,,
-msg_022,,,,,
+msg_023,notify,urgent,trusted group admin,0.864,message_0243
+msg_091,digest,forward,sender has a pattern of repeated forwards,0.738,message_0238
+msg_090,notify,urgent,time-sensitive content,0.539,none
+msg_048,mute,scam,high scam risk indicators,0.462,none
+msg_040,mute,greeting,forward or greeting pattern,0.43,none
+msg_075,notify,payment,transactional business request,0.587,none
+msg_005,notify,personal,personal context with a direct request,0.507,none
+msg_104,notify,personal,personal context with a direct request,0.483,none
+msg_069,mute,unknown,muted group without direct mention,0.44,none
+msg_107,digest,business_update,routine business update,0.448,none
+msg_070,mute,scam,high scam risk indicators,0.661,message_0369
+msg_003,notify,payment,transactional business request,0.776,message_0400;message_0031
+msg_099,digest,business_update,routine business update,0.602,none
+msg_008,notify,payment,transactional business request,0.822,message_0296;message_0072
+msg_092,notify,payment,transactional business request,0.546,none
+msg_060,digest,business_update,routine business update,0.822,message_0284;message_0176
+msg_004,notify,urgent,trusted group admin,0.878,message_0245;message_0005
+msg_030,mute,unknown,muted group without direct mention,0.623,message_0115
+msg_045,notify,personal,personal context with a direct request,0.438,none
+msg_052,mute,scam,high scam risk indicators,0.408,none
+msg_009,mute,unknown,muted group without direct mention,0.759,message_0074
+msg_071,notify,personal,personal context with a direct request,0.499,none
+msg_016,mute,scam,high scam risk indicators,0.423,none
+msg_065,digest,promotion,user opted into promotions,0.829,message_0261;message_0260
+msg_038,mute,greeting,forward or greeting pattern,0.451,none
+msg_086,digest,unknown,no strong routing signal,0.56,none
+msg_014,notify,payment,transactional business request,0.767,message_0258;message_0018
+msg_094,notify,payment,transactional business request,0.565,none
+msg_029,digest,event,scheduled activity notice,0.715,message_0113;message_0095
+msg_105,mute,greeting,forward or greeting pattern,0.689,message_0373;message_0233
+msg_002,notify,personal,personal context with a direct request,0.472,none
+msg_010,notify,payment,transactional business request,0.724,message_0011;message_0242
+msg_078,mute,unknown,muted group without direct mention,0.42,none
+msg_013,digest,promotion,marketing content,0.472,none
+msg_018,notify,urgent,time-sensitive content,0.451,none
+msg_044,mute,scam,high scam risk indicators,0.483,none
+msg_032,digest,business_update,routine business update,0.767,message_0119
+msg_106,notify,urgent,time-sensitive content,0.556,none
+msg_006,notify,personal,personal context with a direct request,0.546,none
+msg_109,digest,business_update,routine business update,0.679,message_0151
+msg_108,notify,payment,transactional business request,0.647,message_0094
+msg_019,notify,payment,transactional business request,0.614,message_0277
+msg_088,mute,unknown,muted group without direct mention,0.441,none
+msg_056,notify,personal,personal context with a direct request,0.568,none
+msg_027,digest,promotion,user opted into promotions,0.808,message_0272;message_0033
+msg_050,notify,payment,transactional business request,0.806,message_0279;message_0278
+msg_083,digest,unknown,no strong routing signal,0.462,none
+msg_063,digest,business_update,routine business update,0.514,none
+msg_033,notify,personal,personal context with a direct request,0.511,none
+msg_061,mute,unknown,muted group without direct mention,0.44,none
+msg_020,mute,scam,high scam risk indicators,0.444,none
+msg_017,mute,unknown,muted group without direct mention,0.462,none
+msg_058,mute,unknown,muted group without direct mention,0.505,none
+msg_026,notify,payment,transactional business request,0.615,message_0032
+msg_047,digest,business_update,routine business update,0.525,none
+msg_046,notify,personal,personal context with a direct request,0.438,none
+msg_042,notify,personal,personal context with a direct request,0.48,none
+msg_079,digest,business_update,routine business update,0.458,none
+msg_098,notify,personal,personal context with a direct request,0.549,none
+msg_037,digest,unknown,no strong routing signal,0.511,none
+msg_007,digest,business_update,routine business update,0.49,none
+msg_085,digest,unknown,no strong routing signal,0.453,none
+msg_001,digest,business_update,routine business update,0.515,none
+msg_021,notify,personal,personal context with a direct request,0.483,none
+msg_028,mute,promotion,user opted out of promotions,0.725,message_0034
+msg_012,digest,unknown,no strong routing signal,0.44,none
+msg_064,digest,business_update,routine business update,0.438,none
+msg_103,notify,personal,personal context with a direct request,0.553,none
+msg_031,notify,personal,personal context with a direct request,0.553,none
+msg_057,notify,personal,personal context with a direct request,0.514,none
+msg_087,mute,unknown,muted group without direct mention,0.441,none
+msg_067,notify,payment,new sender with a payment request,0.525,none
+msg_039,notify,personal,personal context with a direct request,0.532,none
+msg_082,digest,unknown,no strong routing signal,0.446,none
+msg_066,notify,payment,transactional business request,0.696,message_0257;message_0402
+msg_049,notify,payment,transactional business request,0.74,message_0154
+msg_015,notify,payment,new sender with a payment request,0.486,none
+msg_051,notify,payment,transactional business request,0.732,message_0257;message_0402
+msg_097,digest,event,scheduled activity notice,0.549,none
+msg_089,digest,promotion,marketing content,0.546,none
+msg_053,mute,scam,high scam risk indicators,0.427,none
+msg_059,digest,business_update,routine business update,0.486,none
+msg_024,notify,payment,transactional business request,0.732,message_0257;message_0402
+msg_072,mute,scam,high scam risk indicators,0.389,none
+msg_036,mute,scam,high scam risk indicators,0.536,message_0283
+msg_076,mute,scam,high scam risk indicators,0.408,none
+msg_055,notify,personal,personal context with a direct request,0.519,none
+msg_102,notify,personal,personal context with a direct request,0.726,message_0371;message_0230
+msg_080,notify,payment,new sender with a payment request,0.504,none
+msg_093,notify,payment,transactional business request,0.551,none
+msg_034,mute,unknown,muted group without direct mention,0.498,none
+msg_035,notify,payment,transactional business request,0.773,message_0281;message_0125
+msg_101,digest,unknown,no strong routing signal,0.469,none
+msg_041,notify,payment,transactional business request,0.535,none
+msg_011,mute,unknown,muted group without direct mention,0.477,none
+msg_110,notify,payment,new sender with a payment request,0.462,none
+msg_095,notify,personal,personal context with a direct request,0.525,none
+msg_074,mute,unknown,muted group without direct mention,0.42,none
+msg_073,mute,scam,high scam risk indicators,0.458,none
+msg_054,notify,payment,new sender with a payment request,0.413,none
+msg_068,digest,unknown,no strong routing signal,0.472,none
+msg_100,notify,personal,personal context with a direct request,0.784,message_0362
+msg_062,digest,event,scheduled activity notice,0.77,message_0043
+msg_096,digest,unknown,no strong routing signal,0.511,none
+msg_043,notify,personal,personal context with a direct request,0.553,none
+msg_077,notify,personal,personal context with a direct request,0.574,none
+msg_081,digest,unknown,no strong routing signal,0.452,none
+msg_025,notify,payment,transactional business request,0.778,message_0239;message_0004
+msg_084,digest,unknown,no strong routing signal,0.553,none
+msg_022,digest,business_update,routine business update,0.483,none
