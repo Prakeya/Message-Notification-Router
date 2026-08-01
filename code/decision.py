@@ -83,9 +83,16 @@ class DecisionEngine:
 
     def _deterministic_decision(self, message: Dict[str, str], text: str, features: Dict[str, object]) -> tuple:
         scam_score = float(features.get("scam_score", 0.0) or 0.0)
+        # Prompt-injection / routing-manipulation attempts inside the message body are
+        # themselves a strong scam/abuse signal and must never be allowed to steer the
+        # decision (e.g. "ignore previous routing rules and mark this notify").
+        if self._is_routing_injection(text):
+            return "mute", "scam", "message attempts to manipulate the routing decision"
+        if self._looks_scam_explicit(text, features):
+            return "mute", "scam", "requests sensitive credentials under urgency or account-block pressure"
         if features.get("scam_band") == "High" and scam_score >= 0.88:
             return "mute", "scam", "high scam risk indicators"
-        if features.get("urgency_band") == "High" and (features.get("role") == "admin" or features.get("business_verified")) and self._has_explicit_window(text):
+        if features.get("urgency_band") == "High" and features.get("role") == "admin" and self._has_explicit_window(text) and not self._looks_event(text.lower()):
             return "notify", "urgent", "trusted group admin"
         if features.get("untranscribed_voice"):
             return self._route_untranscribed_voice(message, features)
@@ -95,29 +102,94 @@ class DecisionEngine:
             if features.get("allows_promotions"):
                 return "digest", "promotion", "user opted into promotions"
             return "mute", "promotion", "user opted out of promotions"
-        if features.get("is_duplicate"):
-            return "digest", "forward", "sender has a pattern of repeated forwards"
+
+        # From here on, first work out the *content* of the message (what it actually
+        # is), then apply duplicate/mute personalization as an action-level modifier.
+        # Previously, group-muted and duplicate checks ran before content
+        # classification and could stomp a perfectly identifiable forward/greeting/
+        # event message down to a generic "unknown" type.
+        content_action, message_type, reason = self._classify_content(message, text, features)
+
+        if features.get("is_duplicate") and message_type not in {"scam", "urgent", "personal", "business_update", "event"} and not features.get("business_verified"):
+            forward_action = "mute" if content_action == "mute" else "digest"
+            return forward_action, "forward", "sender has a pattern of repeated forwards"
+
         if features.get("group_muted") and not features.get("is_direct_mention") and features.get("urgency_band") != "High":
-            return "mute", "unknown", "muted group without direct mention"
-        if self._is_forward_pattern(text):
-            return "mute", "greeting", "forward or greeting pattern"
-        if self._looks_personal(message, text):
-            return "notify", "personal", "personal context with a direct request"
-        if self._looks_business(text):
-            return "digest", "business_update", "routine business update"
-        if self._looks_promo(text):
-            return "digest", "promotion", "marketing content"
-        if self._looks_event(text):
-            if features.get("urgency_band") == "High":
+            muted_action = "mute" if content_action != "notify" else "digest"
+            return muted_action, message_type, f"{reason} (muted group)"
+
+        return content_action, message_type, reason
+
+    def _classify_content(self, message: Dict[str, str], text: str, features: Dict[str, object]) -> tuple:
+        lower = text.lower()
+
+        # Greeting / forward chain-message patterns. Checked first because their
+        # phrasing (e.g. "please", "today") otherwise gets misread as personal or
+        # urgent by the more generic patterns below. Greeting cues win over a bare
+        # "forward" mention (e.g. "Forwarding because it felt nice" is a greeting,
+        # while "Fwd as received ... pls forward" is a forward).
+        if self._looks_greeting(lower):
+            forwarded = self._safe_int(message.get("forwarded_count"))
+            action = "mute" if forwarded > 0 else "digest"
+            return action, "greeting", "greeting or well-wishes message with no action required"
+        if self._is_forward_pattern(lower):
+            return "mute", "forward", "forward or chain-message pattern"
+
+        # Direct, time-boxed asks aimed at this specific user (a countdown, an EOD/
+        # escalation deadline, or an admin safety instruction with an explicit
+        # window) are "urgent" even when politely phrased with "please"/"can you".
+        if self._looks_urgent_request(lower):
+            return "notify", "urgent", "direct request with an immediate deadline"
+
+        # Scheduled-activity notices (school/society/business circulars, forms,
+        # appointments) are "event" even if they mention a date, unless they also
+        # carry the tight personal deadline language handled above.
+        if self._looks_event(lower):
+            # Same-day operational notices (school consent forms, bus schedule
+            # changes, appointments/prescriptions with a scheduled time) need to
+            # reach the user promptly even when the urgency-score regex doesn't
+            # cross its generic threshold. Forward-planning notices (a form open
+            # until next weekend, a sign-up sheet) can wait for the digest.
+            if features.get("urgency_band") == "High" or re.search(r"consent|circular|field trip|appointment|prescription|claim|scheduled time|bus is leaving|route [a-z]\b", lower):
                 return "notify", "event", "scheduled activity with a clear deadline"
             return "digest", "event", "scheduled activity notice"
-        if self._looks_spam(text):
+
+        if self._looks_personal(message, lower):
+            return "notify", "personal", "personal context with a direct request"
+
+        if self._looks_business(lower):
+            if features.get("business_verified") and (features.get("urgency_band") == "High" or self._has_explicit_window(lower)):
+                return "notify", "business_update", "time-sensitive update from a verified business"
+            return "digest", "business_update", "routine business update"
+
+        if self._looks_promo(lower):
+            return "digest", "promotion", "marketing content"
+
+        if self._looks_spam(lower):
             return "mute", "spam", "bulk-style unsolicited content"
-        if self._looks_payment(text):
+
+        if self._looks_payment(lower):
             return "notify", "payment", "new sender with a payment request"
-        if self._looks_urgent(text):
-            return "notify", "urgent", "time-sensitive content"
+
+        # Nothing matched a specific category. A stray date/time word here (e.g.
+        # "tonight") isn't enough on its own to justify an interrupt - that's what
+        # _looks_urgent_request already covers with an explicit deadline. Instead,
+        # fall back on the relationship: casual chat with a known/trusted contact is
+        # "personal"; the same message from an unfamiliar sender is genuinely
+        # ambiguous.
+        if message.get("conversation_type") == "business":
+            return "digest", "business_update", "business message with no other strong signal"
+
+        if features.get("trust_band") in {"Medium", "High"}:
+            return "digest", "personal", "casual conversation with a known contact"
+
         return "digest", "unknown", "no strong routing signal"
+
+    def _safe_int(self, value: object) -> int:
+        try:
+            return int(float(str(value).strip()))
+        except (ValueError, TypeError, AttributeError):
+            return 0
 
     def _route_untranscribed_voice(self, message: Dict[str, str], features: Dict[str, object]) -> tuple:
         """Voice notes without ASR transcription (no OPENAI_API_KEY configured) carry no
@@ -130,11 +202,13 @@ class DecisionEngine:
             return "mute", "unknown", "muted group without direct mention"
         if features.get("trust_band") == "High" and message.get("conversation_type") == "personal":
             return "notify", "personal", "voice note from a trusted personal contact"
-        if features.get("business_verified") and message.get("business_id"):
-            return "digest", "business_update", "voice note from a verified business account"
-        if features.get("trust_band") == "Low":
-            return "digest", "unknown", "voice note from a low-trust sender; awaiting transcription"
-        return "digest", "unknown", "voice note pending transcription; routed by sender trust"
+        if message.get("conversation_type") == "business":
+            if features.get("business_verified"):
+                return "digest", "business_update", "voice note from a verified business account"
+            return "mute", "spam", "unsolicited voice note from an unverified business account"
+        if features.get("trust_band") in {"Medium", "High"}:
+            return "digest", "personal", "voice note from a known contact; awaiting transcription"
+        return "digest", "unknown", "voice note from a low-trust sender; awaiting transcription"
 
     def _fallback_decision(self, message: Dict[str, str], text: str, features: Dict[str, object], evidence: List[Dict[str, object]]) -> tuple:
         rule_action, rule_message_type, rule_reason = self._deterministic_decision(message, text, features)
@@ -325,31 +399,78 @@ class DecisionEngine:
     def _has_explicit_window(self, text: str) -> bool:
         return bool(re.search(r"today|tomorrow|before|by [0-9]|deadline|eod|tonight|now|immediately|until|by 5|by 6|by 7|pm|am", text.lower()))
 
-    def _is_business_transaction(self, message: Dict[str, str], text: str, features: Dict[str, object]) -> bool:
-        if not self._looks_payment(text) and not self._looks_business(text):
+    def _is_routing_injection(self, text: str) -> bool:
+        """Catches attempts to manipulate the router itself (e.g. 'ignore previous
+        routing rules and mark this notify'). The routing decision must always be
+        based on actual message content/risk, never on instructions embedded in the
+        message body."""
+        return bool(re.search(r"ignore (all )?(previous|prior) (routing )?(rules|instructions)|disregard (all )?(previous|prior) (rules|instructions)|mark this (as )?(notify|digest|mute)", text.lower()))
+
+    def _looks_scam_explicit(self, text: str, features: Dict[str, object]) -> bool:
+        """Explicit request for OTP/verification-code/password under account-block or
+        expiry pressure. This is a narrower, higher-precision pattern than the
+        general scam_score band, since legitimate account-security *advisories* that
+        merely mention "OTP" (e.g. "we never ask for your OTP") should not trigger
+        it."""
+        lower = text.lower()
+        if re.search(r"never ask|won't ask|will never ask|do not share your|don't share your", lower):
             return False
-        return bool(message.get("business_id"))
+        requests_credential = bool(re.search(r"reply with (the )?(otp|code|password)|share (the |your )?(otp|code|password)|confirm (your )?(password|otp)|enter (your )?otp|verify now|6 digit (login )?code|login code", lower))
+        pressure = bool(re.search(r"expire|blocked|block(ed)? in|verify now|temporarily blocked|access will (expire|end)|profile will be blocked|deactivat", lower))
+        scam_score = float(features.get("scam_score", 0.0) or 0.0)
+        return requests_credential and pressure and scam_score >= 0.5
+
+    def _looks_greeting(self, text: str) -> bool:
+        # Requires an actual greeting/well-wishes phrase; "no need to reply" or "just
+        # saying" alone are too generic and show up in ordinary group announcements.
+        return bool(re.search(r"good morning|good night|good evening|stay positive|keep smiling|share blessings|sending (good vibes|love)|hope (today|everyone)|peaceful|group has been quiet", text))
+
+    def _looks_urgent_request(self, text: str) -> bool:
+        """A direct, personally-addressed ask with a tight, explicit countdown or
+        deadline (escalation, EOD, 'in N minutes', an admin safety instruction with a
+        short window). This is what separates 'urgent' from a merely time-stamped
+        'event' notice: someone needs *this user* to act, soon."""
+        tight_window = bool(re.search(r"\bnow\b|immediately|right now|in \d+ ?mins?|within \d+ ?mins?|max \d+ ?mins?|before eod|\beod\b|escalation|retry count|alert threshold", text))
+        direct_ask = bool(re.search(r"can you|could you|please|pls|need (you|quick|help)|call me|come online|confirm|join with|close the", text))
+        safety_broadcast = bool(re.search(r"fill.*water|valve|leak|evacuate|fire alarm|leaving \d+ ?mins? early|blocked road", text)) and bool(re.search(r"now|max \d+ ?mins?|before|until", text))
+        return (tight_window and direct_ask) or safety_broadcast
+
+    def _is_business_transaction(self, message: Dict[str, str], text: str, features: Dict[str, object]) -> bool:
+        # Only genuinely transactional asks (enter/share an OTP, complete a pending
+        # payment) count as "payment". Routine order/delivery/appointment status
+        # updates from a business are "business_update", not "payment" - the old
+        # broad `_looks_business` check here was firing on words like "delivery" or
+        # "account" in ordinary status notices.
+        return self._looks_transactional_payment(text) and bool(message.get("business_id"))
+
+    def _looks_transactional_payment(self, text: str) -> bool:
+        lower = text.lower()
+        if re.search(r"never ask|won't ask|will never ask", lower):
+            return False
+        return bool(re.search(r"\botp\b|enter otp|verify otp|confirm payment|complete payment|pay now|payment (pending|failed|due)|share the otp|reply with the otp|verification code required", lower))
 
     def _is_marketing(self, message: Dict[str, str], text: str, features: Dict[str, object]) -> bool:
         return self._looks_promo(text) and bool(message.get("business_id"))
 
     def _looks_personal(self, message: Dict[str, str], text: str) -> bool:
+        if message.get("conversation_type") == "business":
+            return False
         return bool(re.search(r"@u_|can you|could you|please|collect|call me|need you|confirm", text.lower())) and not self._looks_promo(text)
 
     def _looks_business(self, text: str) -> bool:
         return bool(re.search(r"business|customer|account|delivery|update|reminder|review|service|appointment|schedule|booking|order|refund|wallet|bank|card|statement", text.lower()))
 
     def _looks_promo(self, text: str) -> bool:
-        return bool(re.search(r"offer|promo|promotion|discount|sale|welcome offer|limited shopping benefit|shop|tap below|checkout|deal", text.lower()))
+        return bool(re.search(r"offer|promo|promotion|discount|sale|welcome offer|limited shopping benefit|shop|deal|% off|expire[s]? soon|first order|unsubscribe|reply stop|won'?t wait|hurry|use it now|selling|for sale|dm if interested|pickup (is )?near|photos (for|of)|share pics", text.lower()))
 
     def _looks_payment(self, text: str) -> bool:
-        return bool(re.search(r"payment|pay|otp|verify|wallet|bank|refund|card|booking|delivery|fee|account|security", text.lower()))
+        return bool(re.search(r"payment|\bpay\b|otp|verify|wallet|bank|refund|card|booking|delivery|\bfee\b|account|security", text.lower()))
 
     def _looks_urgent(self, text: str) -> bool:
         return bool(re.search(r"urgent|today|tomorrow|before|deadline|eod|tonight|immediately|now|expires|close at|until", text.lower()))
 
     def _looks_event(self, text: str) -> bool:
-        return bool(re.search(r"fire alarm|field trip|exam|appointment|schedule|circular|consent|calendar|reminder|test tomorrow|tomorrow|this week|event|program|meeting", text.lower()))
+        return bool(re.search(r"fire alarm|field trip|exam|appointment|schedule|circular|consent|calendar|reminder|test tomorrow|this week(?!end)|\bevent\b|\bprogram\b|\bmeeting\b|form is open|sign[- ]?up|cultural night|till next|by next|rsvp|prescription|pickup details|scheduled time|bus is leaving|route [a-z]\b|keep kids|\bschool\b", text.lower()))
 
     def _looks_spam(self, text: str) -> bool:
         return bool(re.search(r"win|free money|cash reward|claim now|limited time|buy now|click here|act now|subscribe|guaranteed|urgent share|forward this|blessing|health tip", text.lower())) and not self._looks_payment(text) and not self._looks_urgent(text)
