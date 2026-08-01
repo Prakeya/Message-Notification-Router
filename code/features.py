@@ -54,6 +54,7 @@ class FeatureEngine:
         business_history = self.user_business_history.get((message.get("user_id"), message.get("business_id")), {}) if message.get("business_id") else {}
 
         trust_score = self._trust_score(user, group_member, business, business_history)
+        business_repeat_dismissed = self._business_repeat_dismissed(business, business_history)
         urgency_score = self._urgency_score(message, media_info)
         scam_score = self._scam_score(message, business, media_info, evidence)
         notification_fatigue = self.fatigue_by_user.get(message.get("user_id"), 0.0)
@@ -78,13 +79,50 @@ class FeatureEngine:
             "notification_fatigue": notification_fatigue,
             "high_fatigue": notification_fatigue >= 0.6,
             "untranscribed_voice": untranscribed_voice,
+            "business_repeat_dismissed": business_repeat_dismissed,
         }
+
+    def _business_repeat_dismissed(self, business: Dict[str, str], business_history: Dict[str, str]) -> bool:
+        """An unverified, heavily-reported business that this user has repeatedly
+        dismissed with zero opens or replies is a strong spam signal that the
+        keyword-based content classifier can't see on its own. Requires all of:
+        unverified sender, several dismissals with no engagement, and a
+        meaningfully high user-report count on the business itself - each signal
+        alone is too weak (verified businesses get dismissed too; new users have
+        low report counts by default)."""
+        if not business_history:
+            return False
+        if business.get("verified") == "1":
+            return False
+        dismissed = _safe_int(business_history.get("messages_dismissed_30d"))
+        replied = _safe_int(business_history.get("messages_replied_30d"))
+        opened = _safe_int(business_history.get("messages_opened_30d"))
+        reports = _safe_int(business.get("user_reports_30d"))
+        return dismissed >= 3 and replied == 0 and opened == 0 and reports >= 10
 
     def _trust_score(self, user: Dict[str, str], group_member: Dict[str, str], business: Dict[str, str], business_history: Dict[str, str]) -> float:
         weights = []
         values = []
         if business_history and "activity_count_180d" in business_history:
-            relationship = 1.0 if int(business_history.get("activity_count_180d", "0")) > 0 else 0.0
+            # Past activity alone isn't positive trust signal - a user who has
+            # dismissed every message and never opened or replied has a *negative*
+            # relationship with this sender, not a neutral/positive one. Only count
+            # activity as trust-building when it reflects real engagement (a reply,
+            # or opens outweighing dismissals).
+            activity = int(business_history.get("activity_count_180d", "0"))
+            dismissed = _safe_int(business_history.get("messages_dismissed_30d"))
+            replied = _safe_int(business_history.get("messages_replied_30d"))
+            opened = _safe_int(business_history.get("messages_opened_30d"))
+            if activity <= 0:
+                relationship = 0.0
+            elif replied > 0:
+                relationship = 1.0
+            elif opened > 0 and dismissed <= opened:
+                relationship = 0.8
+            elif dismissed >= 3 and opened == 0 and replied == 0:
+                relationship = 0.0
+            else:
+                relationship = 0.5
             weights.append(0.35)
             values.append(relationship)
         if business and "verified" in business:

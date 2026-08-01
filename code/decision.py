@@ -157,6 +157,15 @@ class DecisionEngine:
         if self._looks_personal(message, lower):
             return "notify", "personal", "personal context with a direct request"
 
+        # A message from an unverified business that this user has repeatedly
+        # dismissed - with zero opens or replies, and a meaningful report count on
+        # the business itself - is spam even when its wording (a routine-sounding
+        # "we'll call you back") reads like an ordinary business update. Checked
+        # before the generic business classifier below, which only reads message
+        # content and has no way to see this pattern.
+        if features.get("business_repeat_dismissed"):
+            return "mute", "spam", "user has repeatedly dismissed messages from this unverified, frequently-reported business"
+
         if self._looks_business(lower):
             if features.get("business_verified") and (features.get("urgency_band") == "High" or self._has_explicit_window(lower)):
                 return "notify", "business_update", "time-sensitive update from a verified business"
