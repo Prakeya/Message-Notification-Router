@@ -12,6 +12,19 @@ WhatsApp is noisy. A user can receive family chats, society notices, school upda
 
 Read [`problem_statement.md`](./problem_statement.md) for the full task spec, input/output schema, allowed values, and submission format.
 
+## Running This Solution
+
+```bash
+# On this Debian/Ubuntu environment, the plain pip install form fails with PEP 668.
+python3 -m pip install -r requirements.txt --break-system-packages
+# optional, needed for real OCR on image messages; otherwise the pipeline falls back gracefully
+sudo apt-get install tesseract-ocr
+# optional, enables LLM escalation for ambiguous messages and real ASR transcription of voice notes
+export OPENAI_API_KEY=...
+cd code && python3 main.py
+python3 evaluation/main.py
+```
+
 ---
 
 ## Repository Layout

@@ -6,6 +6,11 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 try:
+    import requests
+except Exception:  # pragma: no cover
+    requests = None
+
+try:
     import pytesseract
 except Exception:  # pragma: no cover
     pytesseract = None
@@ -20,7 +25,7 @@ class MediaProcessor:
     def __init__(self, dataset_dir: str):
         self.dataset_dir = Path(dataset_dir)
         self.ocr_available = shutil.which("tesseract") is not None and pytesseract is not None and Image is not None
-        self.asr_available = False
+        self.asr_available = bool(os.getenv("OPENAI_API_KEY"))
 
     def analyze(self, message: Dict[str, str], image_lookup: Dict[str, Dict[str, str]], voice_lookup: Dict[str, Dict[str, str]]) -> Dict[str, object]:
         text = (message.get("message_text") or "").strip()
@@ -92,23 +97,41 @@ class MediaProcessor:
             media_row = voice_lookup.get(media_id, {})
             file_path = media_row.get("file_path", "")
             path = self.dataset_dir / file_path if file_path else None
-            if path and path.exists() and self.asr_available:
-                summary = text or f"voice note {media_id}"
-                return {
-                    "unified_text": self._normalize(summary),
-                    "media_summary": self._normalize(summary),
-                    "ocr_text": "",
-                    "visual_summary": "voice note",
-                    "contains_payment_request": False,
-                    "contains_link_or_qr": False,
-                    "contains_urgency_language": bool(re.search(r"urgent|today|tomorrow|now|deadline|before|immediately|tonight", summary.lower())),
-                    "summary": self._normalize(summary),
-                    "entities": [],
-                    "contains_payment_or_money_mention": bool(re.search(r"payment|otp|verify|pay|card|bank|wallet|refund|fee|money|cash", summary.lower())),
-                    "media_available": True,
-                    "extraction_source": "asr",
-                }
-            summary = text or f"voice message {media_id}"
+            if path and path.exists() and self.asr_available and requests is not None:
+                try:
+                    api_key = os.getenv("OPENAI_API_KEY")
+                    if not api_key:
+                        raise RuntimeError("OPENAI_API_KEY not configured")
+                    endpoint = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1/audio/transcriptions")
+                    model = os.getenv("OPENAI_TRANSCRIBE_MODEL", "whisper-1")
+                    with path.open("rb") as handle:
+                        files = {"file": (path.name, handle, "application/octet-stream")}
+                        data = {"model": model}
+                        response = requests.post(endpoint, headers={"Authorization": f"Bearer {api_key}"}, files=files, data=data, timeout=60)
+                        response.raise_for_status()
+                    payload = response.json()
+                    summary = self._normalize((payload.get("text") or "") or text or f"voice note {media_id}")
+                    contains_payment_request = bool(re.search(r"payment|otp|verify|pay|card|bank|booking|delivery|refund|wallet", summary.lower()))
+                    contains_link_or_qr = bool(re.search(r"link|qr|bit\.ly|http|https|scan", summary.lower()))
+                    contains_urgency_language = bool(re.search(r"urgent|today|tomorrow|now|deadline|before|by [0-9]|immediately|eod|tonight", summary.lower()))
+                    return {
+                        "unified_text": self._normalize(summary),
+                        "media_summary": self._normalize(summary),
+                        "ocr_text": "",
+                        "visual_summary": "voice note",
+                        "contains_payment_request": contains_payment_request,
+                        "contains_link_or_qr": contains_link_or_qr,
+                        "contains_urgency_language": contains_urgency_language,
+                        "summary": self._normalize(summary),
+                        "entities": [],
+                        "contains_payment_or_money_mention": bool(re.search(r"payment|otp|verify|pay|card|bank|wallet|refund|fee|money|cash", summary.lower())),
+                        "media_available": True,
+                        "extraction_source": "asr",
+                    }
+                except Exception:
+                    summary = text or f"voice message {media_id}"
+            else:
+                summary = text or f"voice message {media_id}"
             return {
                 "unified_text": self._normalize(summary),
                 "media_summary": self._normalize(summary),

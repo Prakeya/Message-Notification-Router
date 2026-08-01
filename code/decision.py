@@ -159,7 +159,7 @@ class DecisionEngine:
     def _call_llm(self, message: Dict[str, str], text: str, features: Dict[str, object], evidence: List[Dict[str, object]], media_info: Dict[str, object]) -> Optional[Dict[str, object]]:
         if os.getenv("LLM_FORCE_FAIL") == "1":
             raise RuntimeError("LLM_FORCE_FAIL")
-        api_key = os.getenv("OPENAI_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise RuntimeError("OPENAI_API_KEY not configured")
         endpoint = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1/chat/completions")
@@ -178,8 +178,13 @@ class DecisionEngine:
             data = response.json()
             content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             if isinstance(content, str):
+                cleaned = content.strip()
+                if cleaned.startswith("```"):
+                    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+                    cleaned = re.sub(r"\s*```$", "", cleaned)
+                cleaned = cleaned.strip()
                 try:
-                    return json.loads(content)
+                    return json.loads(cleaned)
                 except json.JSONDecodeError:
                     return None
         except Exception:
@@ -189,7 +194,9 @@ class DecisionEngine:
     def _llm_prompt(self, message: Dict[str, str], text: str, features: Dict[str, object], evidence: List[Dict[str, object]], media_info: Dict[str, object]) -> str:
         evidence_block = "\n".join([f"{item.get('message_id')}: {item.get('snippet')} | reaction={item.get('reaction')}" for item in evidence[:2]]) or "none"
         return (
-            "You are routing an ambiguous WhatsApp message. Return JSON with action, message_type, reason, confidence, evidence_message_ids.\n"
+            "You are routing an ambiguous WhatsApp message. Return ONLY raw JSON (no markdown fences, no commentary) with keys action, message_type, reason, confidence, evidence_message_ids.\n"
+            "action must be exactly one of: notify, digest, mute\n"
+            "message_type must be exactly one of: personal, urgent, event, payment, business_update, promotion, greeting, forward, spam, scam, unknown\n"
             f"Message: {text}\n"
             f"Context: trust_band={features.get('trust_band')} scam_band={features.get('scam_band')} group_muted={features.get('group_muted')} direct_mention={features.get('is_direct_mention')} urgency_band={features.get('urgency_band')}\n"
             f"Evidence: {evidence_block}\n"

@@ -1,0 +1,4 @@
+requests
+pillow
+pytesseract
+# sentence-transformers is optional and only needed if EMBEDDING_MODEL / real embedding retrieval is desired instead of the built-in TF-IDF fallback

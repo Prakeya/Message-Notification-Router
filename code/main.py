@@ -36,6 +36,8 @@ def main() -> None:
     feature_engine = FeatureEngine(users, groups, group_members, business_accounts, user_business_history, message_events)
     debug_path = ROOT / "logs" / "debug_predictions.jsonl"
     os.makedirs(ROOT / "logs", exist_ok=True)
+    if debug_path.exists():
+        debug_path.unlink()
     decision_engine = DecisionEngine(debug_path=str(debug_path))
     validator = SafetyValidator(message_history)
 

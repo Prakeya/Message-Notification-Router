@@ -9,8 +9,6 @@ venv/
 .venv/
 
 # Data
-dataset/
-*.csv
 
 # Logs (optional: keep if you want audit logs tracked)
 logs/
