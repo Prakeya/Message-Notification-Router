@@ -28,7 +28,7 @@ def main() -> None:
 
     processor = MediaProcessor(str(DATASET_DIR))
     retriever = Retriever(message_history, message_events)
-    feature_engine = FeatureEngine(users, groups, group_members, business_accounts, user_business_history, message_events, daily_notification_summary)
+    feature_engine = FeatureEngine(users, groups, group_members, business_accounts, user_business_history, message_events, daily_notification_summary, message_history)
     decision_engine = DecisionEngine(debug_path=None)
 
     action_correct = 0

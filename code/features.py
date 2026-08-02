@@ -16,7 +16,7 @@ def _safe_int(value: object, default: int = 0) -> int:
 
 
 class FeatureEngine:
-    def __init__(self, users: List[Dict[str, str]], groups: List[Dict[str, str]], group_members: List[Dict[str, str]], business_accounts: List[Dict[str, str]], user_business_history: List[Dict[str, str]], message_events: List[Dict[str, str]], daily_notification_summary: Optional[List[Dict[str, str]]] = None):
+    def __init__(self, users: List[Dict[str, str]], groups: List[Dict[str, str]], group_members: List[Dict[str, str]], business_accounts: List[Dict[str, str]], user_business_history: List[Dict[str, str]], message_events: List[Dict[str, str]], daily_notification_summary: Optional[List[Dict[str, str]]] = None, message_history: Optional[List[Dict[str, str]]] = None):
         self.users = {row.get("user_id"): row for row in users}
         self.groups = {row.get("group_id"): row for row in groups}
         self.group_members = {(row.get("group_id"), row.get("user_id")): row for row in group_members}
@@ -24,6 +24,37 @@ class FeatureEngine:
         self.user_business_history = {(row.get("user_id"), row.get("business_id")): row for row in user_business_history}
         self.message_events = {(row.get("user_id"), row.get("message_id")): row for row in message_events}
         self.fatigue_by_user = self._build_fatigue_index(daily_notification_summary or [])
+        self.personal_sender_relationship = self._build_personal_sender_index(message_history or [], message_events)
+
+    def _build_personal_sender_index(self, message_history: List[Dict[str, str]], message_events: List[Dict[str, str]]) -> Dict[tuple, float]:
+        """Per-(recipient, sender) familiarity for 1:1 personal messages, derived from
+        how the recipient has actually reacted to that specific sender's prior
+        messages. Group/business context has role/verified-status to lean on, but a
+        personal conversation_type message has no such signal - so without this,
+        _trust_score fell back to the recipient's own generic engagement stats
+        (messages_opened_30d etc.), which describes how responsive the user is in
+        general, not whether *this specific sender* is known/trusted. That let
+        messages from senders with zero prior contact default to a misleadingly high
+        trust score."""
+        event_map = {(row.get("user_id"), row.get("message_id")): row for row in message_events}
+        index: Dict[tuple, float] = {}
+        for row in message_history:
+            if row.get("conversation_type") != "personal":
+                continue
+            key = (row.get("user_id"), row.get("sender_user_id"))
+            if not key[0] or not key[1]:
+                continue
+            event = event_map.get((row.get("user_id"), row.get("message_id")), {})
+            if event.get("message_reported") == "1":
+                score = 0.0
+            elif event.get("message_replied") == "1":
+                score = 1.0
+            elif event.get("message_opened") == "1":
+                score = 0.7
+            else:
+                score = 0.4
+            index[key] = max(index.get(key, 0.0), score)
+        return index
 
     def _build_fatigue_index(self, daily_summary: List[Dict[str, str]]) -> Dict[str, float]:
         """Per-user notification dismissal rate from daily_notification_summary.csv.
@@ -52,8 +83,12 @@ class FeatureEngine:
         group_member = self.group_members.get((message.get("group_id"), message.get("user_id")), {}) if message.get("group_id") else {}
         business = self.business_accounts.get(message.get("business_id"), {}) if message.get("business_id") else {}
         business_history = self.user_business_history.get((message.get("user_id"), message.get("business_id")), {}) if message.get("business_id") else {}
+        personal_sender_score = None
+        if message.get("conversation_type") == "personal" and not message.get("group_id") and not message.get("business_id"):
+            key = (message.get("user_id"), message.get("sender_user_id"))
+            personal_sender_score = self.personal_sender_relationship.get(key, 0.0)
 
-        trust_score = self._trust_score(user, group_member, business, business_history)
+        trust_score = self._trust_score(user, group_member, business, business_history, personal_sender_score)
         business_repeat_dismissed = self._business_repeat_dismissed(business, business_history)
         urgency_score = self._urgency_score(message, media_info)
         scam_score = self._scam_score(message, business, media_info, evidence)
@@ -100,9 +135,16 @@ class FeatureEngine:
         reports = _safe_int(business.get("user_reports_30d"))
         return dismissed >= 3 and replied == 0 and opened == 0 and reports >= 10
 
-    def _trust_score(self, user: Dict[str, str], group_member: Dict[str, str], business: Dict[str, str], business_history: Dict[str, str]) -> float:
+    def _trust_score(self, user: Dict[str, str], group_member: Dict[str, str], business: Dict[str, str], business_history: Dict[str, str], personal_sender_score: Optional[float] = None) -> float:
         weights = []
         values = []
+        if personal_sender_score is not None:
+            # Direct 1:1 message with no group/business context: whether the
+            # recipient has actually engaged with *this sender* before is a far
+            # stronger and more relevant signal than the recipient's own generic
+            # engagement stats, so it dominates the score.
+            weights.append(0.6)
+            values.append(personal_sender_score)
         if business_history and "activity_count_180d" in business_history:
             # Past activity alone isn't positive trust signal - a user who has
             # dismissed every message and never opened or replied has a *negative*

@@ -32,7 +32,7 @@ def main() -> None:
 
     processor = MediaProcessor(str(DATASET_DIR))
     retriever = Retriever(message_history, message_events)
-    feature_engine = FeatureEngine(users, groups, group_members, business_accounts, user_business_history, message_events, daily_notification_summary)
+    feature_engine = FeatureEngine(users, groups, group_members, business_accounts, user_business_history, message_events, daily_notification_summary, message_history)
     debug_path = ROOT / "logs" / "debug_predictions.jsonl"
     os.makedirs(ROOT / "logs", exist_ok=True)
     if debug_path.exists():
